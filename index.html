@@ -1,0 +1,285 @@
+<!doctype html>
+<html>
+
+<head>
+    <meta charset="utf-8" />
+    <title>Game of Red</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+        }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@900&display=swap" rel="stylesheet">
+</head>
+
+<body>
+
+    <script type="module">
+        import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js";
+
+        // SCENE
+
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x070a12);
+        await document.fonts.load("900 220px Nunito");
+
+        // CAMERA
+
+        const camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.1, 1000);
+
+        // RENDERER
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(innerWidth, innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        document.body.appendChild(renderer.domElement);
+
+        // SHADOWS
+
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+        // LIGHTS
+
+        scene.add(new THREE.AmbientLight(0xffffff, 0.25));
+
+        const key = new THREE.DirectionalLight(0xffffff, 1.2);
+        key.position.set(5, 10, 5);
+        key.castShadow = true;
+
+        scene.add(key);
+
+        const rim = new THREE.DirectionalLight(0x88aaff, 0.3);
+        rim.position.set(-5, 3, -5);
+        scene.add(rim);
+
+        scene.add(new THREE.HemisphereLight(0x9fd3ff, 0x1a1a2e, 0.5));
+
+        // GRID
+
+        const size = 10;
+
+        const tileSize = 1.2;
+
+        const tiles = [];
+
+        const floor = new THREE.Group();
+        scene.add(floor);
+
+        function makeTile(x, z) {
+
+            const geo = new THREE.BoxGeometry(1, 0.1, 1);
+
+            const mat = new THREE.MeshStandardMaterial({
+                color: 0xfafafa,
+                roughness: 0.5,
+                metalness: 0.1
+            });
+
+            const mesh = new THREE.Mesh(geo, mat);
+
+            mesh.position.set(x, 0, z);
+
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+
+            floor.add(mesh);
+
+            tiles.push({ mesh, x, z, color: "gray" });
+        }
+
+        for (let i = -size; i <= size; i++) {
+            for (let j = -size; j <= size; j++) {
+                makeTile(i * tileSize, j * tileSize);
+            }
+        }
+
+        // PLAYER
+
+        const player = new THREE.Mesh(
+            new THREE.BoxGeometry(0.6, 1, 0.6),
+            new THREE.MeshStandardMaterial({
+                color: 0xffff00,
+                emissive: 0x00ffee,
+                emissiveIntensity: 0.7,
+                roughness: 0.3
+            })
+        );
+
+        player.position.y = 0.6;
+        player.position.z = 3;
+
+        player.castShadow = true;
+
+        scene.add(player);
+
+        // CAMERA
+
+        function updateCamera() {
+            camera.position.y = 3;
+            camera.position.x = player.position.x + Math.sin(angle) * 5
+            camera.position.z = player.position.z + Math.cos(angle) * 5
+            camera.lookAt(player.position);
+
+        }
+
+        // GAME
+
+        let state = "wait";
+        let timer = 0;
+        let wave = 1;
+        let waveMesh = null;
+        let keys = {}
+        let angle = 0
+        let speed = 0.03
+        let roundTimeout = null
+        let overHole = null
+
+        document.onkeydown = function (event) {
+            keys[event.key] = true
+            console.log(keys)
+        }
+        document.onkeyup = function (event) {
+            keys[event.key] = false
+            console.log(keys)
+        }
+
+        /* colors */
+
+        const palette = [
+            0xffd6a5,
+            0xfdffb6,
+            0xcaffbf,
+            0x9bf6ff,
+            0xa0c4ff,
+            0xbdb2ff
+        ];
+
+        function updatePlayer() {
+            if (keys.w) {
+                player.position.x -= Math.sin(angle) * speed
+                player.position.z -= Math.cos(angle) * speed
+            }
+            if (keys.a) {
+                angle += 0.02
+            }
+            if (keys.d) {
+                angle -= 0.02
+            }
+            if (keys.s) {
+                player.position.x += Math.sin(angle) * speed
+                player.position.z += Math.cos(angle) * speed
+            }
+            player.rotation.y = angle
+        }
+        function colorize() {
+            tiles.forEach(function (t) {
+                let color = palette[Math.floor(Math.random() * 6)]
+                t.mesh.material.color.setHex(color)
+                t.mesh.material.emissive.setHex(color)
+                t.mesh.material.emissiveIntensity = 0.5
+                if (color == 0xbdb2ff) {
+                    t.color = "match"
+                }
+            })
+        }
+
+        function loop() {
+            requestAnimationFrame(loop);
+
+            updatePlayer()
+            updateCamera();
+            renderer.render(scene, camera);
+            if (state == "wait") {
+                timer++
+                if (timer > 120) {
+                    colorize()
+                    state = "play"
+                    timer = 0
+                }
+            }
+            if (state == "play") {
+                timer++
+                if (timer > 500) {
+                    check()
+                    timer = 0
+                }
+            }
+            if (state != "lose") {
+                updatePlayer()
+            }
+            else {
+                player.position.y -= 0.1
+            }
+            if (state == "nextRound") {
+                overHole = true
+                tiles.forEach(function (t) {
+                    if (dx < 0.6 && dz < 0.6 && t.mesh.visible == true) {
+                        overHole = false
+                    }
+                })
+
+                if (overHole) {
+                    state = "lose"
+                    clearTimeout(roundTimeout)
+                    setTimeout(function () {
+                        player.position.y = 0.6
+                        startRound()
+                    }, 2500)
+                }
+            }
+        }
+        function check() {
+            let win = false
+            tiles.forEach(function (t) {
+                let dx = Math.abs(player.position.x - t.x)
+                let dz = Math.abs(player.position.z - t.z)
+                if (dx < 0.6 && dz < 0.6 && t.color == "match") {
+                    console.log(t)
+                    win = true
+                }
+                if (t.color !== "match") {
+                    t.mesh.visible = false
+                }
+
+            })
+
+            if (win) {
+                setTimeout(function () {
+                    startRound()
+                }, 2000)
+            }
+            else {
+                state = "lose"
+                setTimeout(function () {
+                    player.position.y = 0.6
+                    startRound()
+                }, 2500)
+            }
+        }
+
+
+        function startRound() {
+            state = "wait"
+            resetTiles()
+        }
+        function resetTiles() {
+            tiles.forEach(function (t) {
+                t.mesh.visible = true
+                t.color = "gray"
+            })
+        }
+
+        loop();
+
+        addEventListener("resize", () => {
+            camera.aspect = innerWidth / innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(innerWidth, innerHeight);
+        });
+    </script>
+</body>
+
+</html>
+<!-- сделать падение -->
