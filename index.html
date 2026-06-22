@@ -132,9 +132,8 @@
         let waveMesh = null;
         let keys = {}
         let angle = 0
-        let speed = 0.03
+        let speed = 0.04
         let roundTimeout = null
-        let overHole = null
 
         document.onkeydown = function (event) {
             keys[event.key] = true
@@ -213,18 +212,20 @@
                 player.position.y -= 0.1
             }
             if (state == "nextRound") {
-                overHole = true
+                let standingOnTile = false
                 tiles.forEach(function (t) {
+                    let dx = Math.abs(player.position.x - t.x)
+                    let dz = Math.abs(player.position.z - t.z)
                     if (dx < 0.6 && dz < 0.6 && t.mesh.visible == true) {
-                        overHole = false
+                        standingOnTile = true
                     }
                 })
 
-                if (overHole) {
+                if (!standingOnTile) {
                     state = "lose"
                     clearTimeout(roundTimeout)
                     setTimeout(function () {
-                        player.position.y = 0.6
+                        player.position.y = 0.6;
                         startRound()
                     }, 2500)
                 }
@@ -246,6 +247,7 @@
             })
 
             if (win) {
+                state = "nextRound"
                 setTimeout(function () {
                     startRound()
                 }, 2000)
