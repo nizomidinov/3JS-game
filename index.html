@@ -9,15 +9,25 @@
             margin: 0;
             overflow: hidden;
         }
+
+        #wave {
+            position: absolute;
+            top: 20px;
+            left: 47%;
+            color: white;
+            font-size: 32px;
+            pointer-events: none;
+        }
     </style>
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@900&display=swap" rel="stylesheet">
 </head>
 
 <body>
 
+    <div id="wave">Волна: <span id="wave-counter">1</span></div>
+
     <script type="module">
         import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js";
-
         // SCENE
 
         const scene = new THREE.Scene();
@@ -74,7 +84,9 @@
             const mat = new THREE.MeshStandardMaterial({
                 color: 0xfafafa,
                 roughness: 0.5,
-                metalness: 0.1
+                metalness: 0.1,
+                emissive: 0x111111,
+                emissiveIntensity: 0.4
             });
 
             const mesh = new THREE.Mesh(geo, mat);
@@ -108,6 +120,7 @@
         );
 
         player.position.y = 0.6;
+        player.position.x = 0
         player.position.z = 3;
 
         player.castShadow = true;
@@ -121,7 +134,6 @@
             camera.position.x = player.position.x + Math.sin(angle) * 5
             camera.position.z = player.position.z + Math.cos(angle) * 5
             camera.lookAt(player.position);
-
         }
 
         // GAME
@@ -132,8 +144,10 @@
         let waveMesh = null;
         let keys = {}
         let angle = 0
-        let speed = 0.04
+        let speed = 0.07
         let roundTimeout = null
+
+        const wave_counter = document.getElementById("wave-counter")
 
         document.onkeydown = function (event) {
             keys[event.key] = true
@@ -152,32 +166,58 @@
             0xcaffbf,
             0x9bf6ff,
             0xa0c4ff,
-            0xbdb2ff
+            0xff7b7b
         ];
 
         function updatePlayer() {
+            if (state == "lose") return;
             if (keys.w) {
                 player.position.x -= Math.sin(angle) * speed
                 player.position.z -= Math.cos(angle) * speed
             }
             if (keys.a) {
-                angle += 0.02
+                angle += 0.03
             }
             if (keys.d) {
-                angle -= 0.02
+                angle -= 0.03
             }
             if (keys.s) {
                 player.position.x += Math.sin(angle) * speed
                 player.position.z += Math.cos(angle) * speed
             }
             player.rotation.y = angle
+
+            let standingOnTile = false
+            tiles.forEach(function (t) {
+                let dx = Math.abs(player.position.x - t.x)
+                let dz = Math.abs(player.position.z - t.z)
+                if (dx < 0.6 && dz < 0.6 && t.mesh.visible == true) {
+                    standingOnTile = true
+                }
+            })
+
+            if (!standingOnTile && state != "lose") {
+                state = "lose"
+                setTimeout(function () {
+                    player.position.y = 0.6;
+                    player.position.x = 0;
+                    player.position.z = 3;
+                    wave = 1
+                    wave_counter.innerText = wave
+                    startRound()
+                }, 2500)
+            }
         }
         function colorize() {
+            let chance = Math.max(0.02, 0.2 - wave * 0.03)
             tiles.forEach(function (t) {
-                let color = palette[Math.floor(Math.random() * 6)]
+                let color = palette[Math.floor(Math.random() * palette.length)]
+                if(Math.random() < chance){
+                    color = 0xbdb2ff
+                }
                 t.mesh.material.color.setHex(color)
                 t.mesh.material.emissive.setHex(color)
-                t.mesh.material.emissiveIntensity = 0.5
+                t.mesh.material.emissiveIntensity = 0.1
                 if (color == 0xbdb2ff) {
                     t.color = "match"
                 }
@@ -192,7 +232,7 @@
             renderer.render(scene, camera);
             if (state == "wait") {
                 timer++
-                if (timer > 120) {
+                if (timer > 250) {
                     colorize()
                     state = "play"
                     timer = 0
@@ -205,30 +245,9 @@
                     timer = 0
                 }
             }
-            if (state != "lose") {
-                updatePlayer()
-            }
-            else {
-                player.position.y -= 0.1
-            }
-            if (state == "nextRound") {
-                let standingOnTile = false
-                tiles.forEach(function (t) {
-                    let dx = Math.abs(player.position.x - t.x)
-                    let dz = Math.abs(player.position.z - t.z)
-                    if (dx < 0.6 && dz < 0.6 && t.mesh.visible == true) {
-                        standingOnTile = true
-                    }
-                })
 
-                if (!standingOnTile) {
-                    state = "lose"
-                    clearTimeout(roundTimeout)
-                    setTimeout(function () {
-                        player.position.y = 0.6;
-                        startRound()
-                    }, 2500)
-                }
+            if (state == "lose") {
+                player.position.y -= 0.1
             }
         }
         function check() {
@@ -247,29 +266,26 @@
             })
 
             if (win) {
-                state = "nextRound"
                 setTimeout(function () {
+                    wave++
+                    wave_counter.innerText = wave
                     startRound()
                 }, 2000)
             }
-            else {
-                state = "lose"
-                setTimeout(function () {
-                    player.position.y = 0.6
-                    startRound()
-                }, 2500)
-            }
         }
-
 
         function startRound() {
             state = "wait"
             resetTiles()
+            timer = 0
         }
         function resetTiles() {
             tiles.forEach(function (t) {
                 t.mesh.visible = true
                 t.color = "gray"
+                t.mesh.material.color.setHex(0xfafafa)
+                t.mesh.material.emissive.setHex(0x111111)
+                t.mesh.material.emissiveIntensity = 0.4
             })
         }
 
@@ -284,4 +300,4 @@
 </body>
 
 </html>
-<!-- сделать падение -->
+<!-- анимацию сделать модельке игрока, как усложнить игру -->
