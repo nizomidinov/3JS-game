@@ -20,6 +20,14 @@
         }
     </style>
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@900&display=swap" rel="stylesheet">
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
 </head>
 
 <body>
@@ -28,6 +36,8 @@
 
     <script type="module">
         import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js";
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
         // SCENE
 
         const scene = new THREE.Scene();
@@ -37,8 +47,20 @@
         // CAMERA
 
         const camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.1, 1000);
+        camera.position.set(0, 5, 10)
+        let chelik
 
         // RENDERER
+        const loader = new GLTFLoader();
+        loader.load('./chelik.glb', (gltf) => {
+            chelik = gltf.scene;
+
+            chelik.scale.set(0.8, 0.8, 0.8);
+            chelik.position.y = 1
+
+            scene.add(chelik);
+
+        });
 
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(innerWidth, innerHeight);
@@ -108,7 +130,6 @@
         }
 
         // PLAYER
-
         const player = new THREE.Mesh(
             new THREE.BoxGeometry(0.6, 1, 0.6),
             new THREE.MeshStandardMaterial({
@@ -125,15 +146,20 @@
 
         player.castShadow = true;
 
-        scene.add(player);
+        // scene.add(player);
 
         // CAMERA
-
+            // Здесь менял!!
         function updateCamera() {
-            camera.position.y = 3;
-            camera.position.x = player.position.x + Math.sin(angle) * 5
-            camera.position.z = player.position.z + Math.cos(angle) * 5
-            camera.lookAt(player.position);
+            if (!chelik) return;
+            camera.position.y = 2.7;
+            camera.position.x = chelik.position.x - Math.sin(angle) * 5
+            camera.position.z = chelik.position.z - Math.cos(angle) * 5
+            camera.lookAt(chelik.position);
+            
+
+            // Камера всегда смотрит на персонажа
+            camera.lookAt(chelik.position);
         }
 
         // GAME
@@ -143,7 +169,7 @@
         let wave = 1;
         let waveMesh = null;
         let keys = {}
-        let angle = 0
+        let angle = Math.PI
         let speed = 0.07
         let roundTimeout = null
 
@@ -172,8 +198,8 @@
         function updatePlayer() {
             if (state == "lose") return;
             if (keys.w) {
-                player.position.x -= Math.sin(angle) * speed
-                player.position.z -= Math.cos(angle) * speed
+                chelik.position.x += Math.sin(angle) * speed
+                chelik.position.z += Math.cos(angle) * speed
             }
             if (keys.a) {
                 angle += 0.03
@@ -182,15 +208,16 @@
                 angle -= 0.03
             }
             if (keys.s) {
-                player.position.x += Math.sin(angle) * speed
-                player.position.z += Math.cos(angle) * speed
+                chelik.position.x -= Math.sin(angle) * speed
+                chelik.position.z -= Math.cos(angle) * speed
             }
-            player.rotation.y = angle
+
+            chelik.rotation.y = angle
 
             let standingOnTile = false
             tiles.forEach(function (t) {
-                let dx = Math.abs(player.position.x - t.x)
-                let dz = Math.abs(player.position.z - t.z)
+                let dx = Math.abs(chelik.position.x - t.x)
+                let dz = Math.abs(chelik.position.z - t.z)
                 if (dx < 0.6 && dz < 0.6 && t.mesh.visible == true) {
                     standingOnTile = true
                 }
@@ -199,9 +226,9 @@
             if (!standingOnTile && state != "lose") {
                 state = "lose"
                 setTimeout(function () {
-                    player.position.y = 0.6;
-                    player.position.x = 0;
-                    player.position.z = 3;
+                    chelik.position.y = 1;
+                    chelik.position.x = 0;
+                    chelik.position.z = 3;
                     wave = 1
                     wave_counter.innerText = wave
                     startRound()
@@ -212,7 +239,7 @@
             let chance = Math.max(0.02, 0.2 - wave * 0.03)
             tiles.forEach(function (t) {
                 let color = palette[Math.floor(Math.random() * palette.length)]
-                if(Math.random() < chance){
+                if (Math.random() < chance) {
                     color = 0xbdb2ff
                 }
                 t.mesh.material.color.setHex(color)
@@ -226,9 +253,9 @@
 
         function loop() {
             requestAnimationFrame(loop);
-
             updatePlayer()
             updateCamera();
+
             renderer.render(scene, camera);
             if (state == "wait") {
                 timer++
@@ -247,14 +274,14 @@
             }
 
             if (state == "lose") {
-                player.position.y -= 0.1
+                chelik.position.y -= 0.1
             }
         }
         function check() {
             let win = false
             tiles.forEach(function (t) {
-                let dx = Math.abs(player.position.x - t.x)
-                let dz = Math.abs(player.position.z - t.z)
+                let dx = Math.abs(chelik.position.x - t.x)
+                let dz = Math.abs(chelik.position.z - t.z)
                 if (dx < 0.6 && dz < 0.6 && t.color == "match") {
                     console.log(t)
                     win = true
@@ -300,4 +327,4 @@
 </body>
 
 </html>
-<!-- анимацию сделать модельке игрока, как усложнить игру -->
+<!-- // анимацию сделать модельке игрока, как усложнить игру, камера мыщкой управлять, камеру подровнять, кубик убрать -->
